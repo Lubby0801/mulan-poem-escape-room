@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>《木蘭詩》實體沉浸式 2D 密室逃脫 RPG</title>
+    <style>
+        :root {
+            --bg-dark: #1c130e;
+            --paper-bg: #f4eae1;
+            --paper-dark: #e5d3c2;
+            --wood-dark: #3a2212;
+            --wood-light: #6e472a;
+            --accent-gold: #c9933b;
+            --accent-red: #8b261d;
+            --text-main: #2b1d14;
+            --border-gold: #b8860b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', 'Noto Serif TC', serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 960px;
+            height: 640px;
+            background-color: #2a1d15;
+            border: 8px solid var(--wood-dark);
+            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 15px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Bar Header */
+        #top-bar {
+            height: 48px;
+            background: linear-gradient(to bottom, #4a2f1b, #2c1a0e);
+            border-bottom: 2px solid var(--accent-gold);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            color: #f3e5ab;
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            z-index: 10;
+        }
+
+        .room-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-gold);
+        }
+
+        .stage-indicator {
+            background: rgba(0,0,0,0.4);
+            padding: 4px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--accent-gold);
+            font-size: 14px;
+        }
+
+        /* Canvas Main View */
+        #viewport {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            background-color: #1a100a;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        /* Bottom Inventory & Action Bar */
+        #bottom-bar {
+            height: 90px;
+            background: linear-gradient(to top, #362215, #23140b);
+            border-top: 3px solid var(--wood-light);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            z-index: 10;
+        }
+
+        #inventory-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .inventory-label {
+            color: var(--accent-gold);
+            font-size: 14px;
+            writing-mode: vertical-lr;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+
+        .inventory-slots {
+            display: flex;
+            gap: 8px;
+        }
+
+        .slot {
+            width: 60px;
+            height: 60px;
+            background: rgba(0,0,0,0.5);
+            border: 2px solid #5a3c26;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .slot:hover {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 8px rgba(201, 147, 59, 0.5);
+        }
+
+        .slot.has-item {
+            background: radial-gradient(circle, #4a3221 0%, #1a100a 100%);
+            border-color: var(--accent-gold);
+        }
+
+        .slot-icon {
+            font-size: 28px;
+        }
+
+        .slot-name {
+            position: absolute;
+            bottom: 2px;
+            font-size: 10px;
+            color: #d4c3b3;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        /* Control Hints & Touch D-pad */
+        #controls-hint {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #a89280;
+            font-size: 13px;
+        }
+
+        .key-badge {
+            background: #4a3525;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #7a583d;
+            font-family: monospace;
+            font-weight: bold;
+        }
+
+        /* Interaction Overlay Banner */
+        #interact-prompt {
+            position: absolute;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 12, 6, 0.85);
+            border: 2px solid var(--accent-gold);
+            color: #fff;
+            padding: 8px 24px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            display: none;
+            align-items: center;
+            gap: 8px;
+            z-index: 15;
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { transform: translateX(-50%) scale(1); }
+            100% { transform: translateX(-50%) scale(1.05); }
+        }
+
+        /* Modal Popup Windows */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(3px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal-card {
+            width: 580px;
+            background: var(--paper-bg);
+            background-image: radial-gradient(var(--paper-dark) 1px, transparent 0);
+            background-size: 16px 16px;
+            border: 6px double var(--wood-dark);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+            padding: 24px;
+            position: relative;
+            color: var(--text-main);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--accent-red);
+            padding-bottom: 10px;
+            margin-bottom: 16px;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--accent-red);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-close {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            line-height: 28px;
+            text-align: center;
+        }
+
+        .modal-close:hover {
+            background: #b32d22;
+        }
+
+        .modal-body {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .clue-box {
+            background: rgba(139, 38, 29, 0.08);
+            border-left: 4px solid var(--accent-red);
+            padding: 10px 14px;
+            margin: 12px 0;
+            font-style: italic;
+            border-radius: 0 4px 4px 0;
+        }
+
+        /* Physical Lock Dials */
+        .lock-container {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .dial-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dial-btn {
+            background: var(--wood-dark);
+            color: var(--accent-gold);
+            border: 1px solid var(--border-gold);
+            width: 44px;
+            height: 28px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .dial-btn:hover {
+            background: var(--wood-light);
+        }
+
+        .dial-val {
+            width: 50px;
+            height: 60px;
+            background: linear-gradient(to bottom, #1a100a, #3a2517, #1a100a);
+            border: 2px solid var(--accent-gold);
+            border-radius: 6px;
+            color: #f3e5ab;
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 0 8px #000;
+        }
+
+        .question-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 16px 0;
+        }
+
+        .option-btn {
+            background: #ebd8c5;
+            border: 2px solid #8c684d;
+            padding: 12px 16px;
+            border-radius: 6px;
+            text-align: left;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+            transition: all 0.2s;
+            color: var(--text-main);
+        }
+
+        .option-btn:hover {
+            background: #f7e9dc;
+            border-color: var(--accent-red);
+            transform: translateX(4px);
+        }
+
+        .btn-submit {
+            background: linear-gradient(to bottom, #8b261d, #631912);
+            color: white;
+            border: 1px solid var(--accent-gold);
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: block;
+            margin: 0 auto;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .btn-submit:hover {
+            background: linear-gradient(to bottom, #a32f24, #782017);
+        }
+
+        /* Item Zoom Modal */
+        .item-preview-img {
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, #5c3e28 0%, #291a10 100%);
+            border: 3px solid var(--accent-gold);
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+        }
+
+        /* Virtual D-Pad for Touch */
+        #virtual-dpad {
+            position: absolute;
+            bottom: 100px;
+            right: 20px;
+            width: 120px;
+            height: 120px;
+            display: none;
+            z-index: 20;
+        }
+
+        .dpad-btn {
+            position: absolute;
+            width: 38px;
+            height: 38px;
+            background: rgba(58, 34, 18, 0.8);
+            border: 2px solid var(--accent-gold);
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .dpad-up { top: 0; left: 41px; }
+        .dpad-down { bottom: 0; left: 41px; }
+        .dpad-left { top: 41px; left: 0; }
+        .dpad-right { top: 41px; right: 0; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- Top Status Bar -->
+    <div id="top-bar">
+        <div class="room-title">
+            <span id="room-icon">⛩️</span>
+            <span id="room-name">第一關：木家織房</span>
+        </div>
+        <div class="stage-indicator">進度：<span id="stage-num">1</span> / 4 關</div>
+    </div>
+
+    <!-- Main 2D Canvas Viewport -->
+    <div id="viewport">
+        <canvas id="gameCanvas" width="960" height="502"></canvas>
+        <div id="interact-prompt">💡 按 <span class="key-badge">E</span> 或 <span class="key-badge">空格</span> 檢查物件</div>
+
+        <!-- Touch Controls -->
+        <div id="virtual-dpad">
+            <div class="dpad-btn dpad-up" onclick="movePlayer(0, -1)">▲</div>
+            <div class="dpad-btn dpad-left" onclick="movePlayer(-1, 0)">◄</div>
+            <div class="dpad-btn dpad-right" onclick="movePlayer(1, 0)">►</div>
+            <div class="dpad-btn dpad-down" onclick="movePlayer(0, 1)">▼</div>
+        </div>
+    </div>
+
+    <!-- Bottom Inventory Bar -->
+    <div id="bottom-bar">
+        <div id="inventory-container">
+            <div class="inventory-label">實體道具</div>
+            <div class="inventory-slots">
+                <div class="slot" id="slot-0" onclick="inspectSlot(0)"></div>
+                <div class="slot" id="slot-1" onclick="inspectSlot(1)"></div>
+                <div class="slot" id="slot-2" onclick="inspectSlot(2)"></div>
+                <div class="slot" id="slot-3" onclick="inspectSlot(3)"></div>
+            </div>
+        </div>
+
+        <div id="controls-hint">
+            <span>移動：<span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> / <span class="key-badge">▲▼◄►</span></span>
+            <span>互動：<span class="key-badge">E</span> / <span class="key-badge">Space</span></span>
+        </div>
+    </div>
+
+    <!-- Modal Popup Overlays -->
+    <!-- Puzzle Modal -->
+    <div class="modal-overlay" id="puzzle-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title" id="puzzle-title">📜 機關解謎</div>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body" id="puzzle-content">
+                <!-- Dynamic Content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Inspection Modal -->
+    <div class="modal-overlay" id="item-modal">
+        <div class="modal-card" style="width: 440px; text-align: center;">
+            <div class="modal-header">
+                <div class="modal-title" id="item-title">🔍 道具詳情</div>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="item-preview-img" id="item-icon">📦</div>
+                <h3 id="item-name-heading" style="color:var(--accent-red); margin-bottom:8px;">道具名稱</h3>
+                <p id="item-desc" style="color:#555; font-size:14px; margin-bottom:12px;">道具描述</p>
+                <div class="clue-box" id="item-clue">線索文字</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- Audio Sound Effects Engine (Web Audio API) ---
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) audioCtx = new AudioCtx();
+}
+
+function playSound(type) {
+    initAudio();
+    if (!audioCtx) return;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    const now = audioCtx.currentTime;
+
+    if (type === 'step') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+    } else if (type === 'click') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.05);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+        osc.start(now);
+        osc.stop(now + 0.05);
+    } else if (type === 'unlock') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.setValueAtTime(600, now + 0.1);
+        osc.frequency.setValueAtTime(800, now + 0.2);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+    } else if (type === 'error') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.setValueAtTime(110, now + 0.12);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+    }
+}
+
+// --- Game State & Data ---
+let currentStage = 1;
+const player = { x: 440, y: 380, speed: 5, size: 28, dir: 'down' };
+const keysPressed = {};
+let inventory = [];
+
+// Rooms configuration
+const stages = {
+    1: {
+        name: "第一關：木家織房",
+        bgStyle: "#3a2517",
+        floorPattern: "wood",
+        interactables: [
+            { id: "loom", name: "古樸織布機", x: 180, y: 160, width: 80, height: 60, color: "#8c5638", icon: "🧵" },
+            { id: "notice", name: "徵兵召集令", x: 740, y: 140, width: 50, height: 60, color: "#b8860b", icon: "📜" },
+            { id: "chest1", name: "機杼上鎖木箱", x: 460, y: 140, width: 60, height: 50, color: "#5c3a21", icon: "📦" },
+            { id: "door1", name: "織房出口大門", x: 440, y: 40, width: 80, height: 30, color: "#8b261d", icon: "🚪" }
+        ]
+    },
+    2: {
+        name: "第二關：東市集市",
+        bgStyle: "#2d3a24",
+        floorPattern: "stone",
+        interactables: [
+            { id: "horse_stall", name: "駿馬鞍具攤", x: 160, y: 160, width: 90, height: 60, color: "#7a5230", icon: "🐴" },
+            { id: "river_map", name: "黃河行軍圖標", x: 720, y: 150, width: 60, height: 60, color: "#4682b4", icon: "🗺️" },
+            { id: "chest2", name: "集市鐵鎖機關箱", x: 460, y: 140, width: 60, height: 50, color: "#4a4a4a", icon: "🔒" },
+            { id: "door2", name: "軍營大門關卡", x: 440, y: 40, width: 80, height: 30, color: "#8b261d", icon: "🚪" }
+        ]
+    },
+    3: {
+        name: "第三關：軍營幕府",
+        bgStyle: "#422018",
+        floorPattern: "carpet",
+        interactables: [
+            { id: "sandtable", name: "邊塞將軍沙盤", x: 200, y: 180, width: 90, height: 70, color: "#6b4423", icon: "⚔️" },
+            { id: "tally_stand", name: "天子兵符架", x: 720, y: 160, width: 60, height: 60, color: "#d4af37", icon: "🐯" },
+            { id: "chest3", name: "十二軍卷保險鎖", x: 460, y: 140, width: 60, height: 50, color: "#2f4f4f", icon: "🔐" },
+            { id: "door3", name: "帥帳後門出口", x: 440, y: 40, width: 80, height: 30, color: "#8b261d", icon: "🚪" }
+        ]
+    },
+    4: {
+        name: "第四關：凱旋閨房",
+        bgStyle: "#3d2733",
+        floorPattern: "pattern",
+        interactables: [
+            { id: "mirror", name: "理雲鬢梳妝檯", x: 200, y: 160, width: 70, height: 60, color: "#b85b74", icon: "🪞" },
+            { id: "rabbit_cage", name: "雙兔觀賞籠", x: 720, y: 160, width: 70, height: 60, color: "#8b7d6b", icon: "🐇" },
+            { id: "master_lock", name: "木蘭脫逃終極大門", x: 440, y: 40, width: 80, height: 30, color: "#d4af37", icon: "⛩️" }
+        ]
+    }
+};
+
+// Item Database
+const itemsDb = {
+    shuttle: { name: "織布梭子", icon: "梭", desc: "木蘭織布時使用的實體木梭，刻有「唧唧復唧唧」之紋路。", clue: "線索：第一關字音密碼首字為『機杼』之「杼」（ㄓㄨˋ）。" },
+    saddle: { name: "駿馬鞍韉", icon: "鞍", desc: "東市買來的駿馬鞍墊與轡頭。", clue: "線索：第二關狀聲詞密碼為水聲『濺濺』與馬聲『啾啾』。" },
+    tally: { name: "虎符兵符", icon: "符", desc: "調動征兵軍隊之銅質虎符，刻有對偶修辭。", clue: "線索：第三關密碼對應『軍書十二卷』與『同行十二年』之虛數『12』。" },
+    comb: { name: "雲鬢黃花梳", icon: "梳", desc: "木蘭還鄉脫去戰袍後，當窗理雲鬢所用之精緻飾品。", clue: "終極線索：雄兔腳撲朔，雌兔眼迷離。雙兔傍地走，安能辨我是雄雌！" }
+};
+
+// Stage completion flags
+const stageProgress = { 1: false, 2: false, 3: false, 4: false };
+
+// --- Setup & Canvas Loop ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+window.addEventListener('keydown', e => {
+    initAudio();
+    keysPressed[e.key.toLowerCase()] = true;
+    keysPressed[e.key] = true;
+
+    if (e.key === 'e' || e.key === 'E' || e.key === ' ') {
+        checkInteraction();
+    }
+});
+
+window.addEventListener('keyup', e => {
+    keysPressed[e.key.toLowerCase()] = false;
+    keysPressed[e.key] = false;
+});
+
+function movePlayer(dx, dy) {
+    initAudio();
+    let newX = player.x + dx * player.speed * 3;
+    let newY = player.y + dy * player.speed * 3;
+
+    // Boundaries
+    if (newX >= 40 && newX <= canvas.width - 70) player.x = newX;
+    if (newY >= 80 && newY <= canvas.height - 70) player.y = newY;
+
+    if (dx > 0) player.dir = 'right';
+    else if (dx < 0) player.dir = 'left';
+    else if (dy > 0) player.dir = 'down';
+    else if (dy < 0) player.dir = 'up';
+
+    playSound('step');
+}
+
+function updateGame() {
+    let moving = false;
+    if (keysPressed['w'] || keysPressed['arrowup']) { movePlayer(0, -0.3); moving = true; }
+    if (keysPressed['s'] || keysPressed['arrowdown']) { movePlayer(0, 0.3); moving = true; }
+    if (keysPressed['a'] || keysPressed['arrowleft']) { movePlayer(-0.3, 0); moving = true; }
+    if (keysPressed['d'] || keysPressed['arrowright']) { movePlayer(0.3, 0); moving = true; }
+
+    // Proximity Prompt Check
+    let nearObj = getNearbyInteractable();
+    const promptEl = document.getElementById('interact-prompt');
+    if (nearObj) {
+        promptEl.style.display = 'flex';
+        promptEl.innerHTML = `💡 按 <span class="key-badge">E</span> 檢查 [${nearObj.name}]`;
+    } else {
+        promptEl.style.display = 'none';
+    }
+}
+
+function renderGame() {
+    const curStageData = stages[currentStage];
+
+    // 1. Draw Floor
+    ctx.fillStyle = curStageData.bgStyle;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Floor Grid detail
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 2;
+    for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+
+    // 2. Draw Walls & Borders
+    ctx.fillStyle = "#1a0f09";
+    ctx.fillRect(0, 0, canvas.width, 60);
+    ctx.fillRect(0, 0, 30, canvas.height);
+    ctx.fillRect(canvas.width - 30, 0, 30, canvas.height);
+    ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
+
+    ctx.strokeStyle = "#c9933b";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(30, 60, canvas.width - 60, canvas.height - 90);
+
+    // 3. Draw Interactables
+    curStageData.interactables.forEach(obj => {
+        // Shadow
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
+        ctx.beginPath();
+        ctx.ellipse(obj.x + obj.width/2, obj.y + obj.height - 5, obj.width/2, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Object Body
+        ctx.fillStyle = obj.color;
+        ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+        ctx.strokeStyle = "#f3e5ab";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
+
+        // Icon
+        ctx.font = "24px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(obj.icon, obj.x + obj.width/2, obj.y + obj.height/2 + 8);
+
+        // Name tag
+        ctx.font = "12px sans-serif";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(obj.name, obj.x + obj.width/2, obj.y - 8);
+    });
+
+    // 4. Draw Player (Mulan)
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.beginPath();
+    ctx.ellipse(player.x + 14, player.y + 26, 14, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mulan Outfit (Traditional red & brown tunic)
+    ctx.fillStyle = "#8b261d";
+    ctx.fillRect(player.x + 4, player.y + 10, 20, 16);
+    ctx.fillStyle = "#c9933b";
+    ctx.fillRect(player.x + 8, player.y + 12, 12, 4);
+
+    // Head
+    ctx.fillStyle = "#f5d0a9";
+    ctx.beginPath();
+    ctx.arc(player.x + 14, player.y + 6, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hair bun
+    ctx.fillStyle = "#1a1a1a";
+    ctx.beginPath();
+    ctx.arc(player.x + 14, player.y - 2, 6, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function gameLoop() {
+    updateGame();
+    renderGame();
+    requestAnimationFrame(gameLoop);
+}
+
+// --- Interaction Logic ---
+function getNearbyInteractable() {
+    const curStageData = stages[currentStage];
+    for (let obj of curStageData.interactables) {
+        let dist = Math.hypot((player.x + 14) - (obj.x + obj.width/2), (player.y + 14) - (obj.y + obj.height/2));
+        if (dist < 75) return obj;
+    }
+    return null;
+}
+
+function checkInteraction() {
+    const obj = getNearbyInteractable();
+    if (!obj) return;
+
+    playSound('click');
+    openPuzzleModal(obj);
+}
+
+function openPuzzleModal(obj) {
+    const modal = document.getElementById('puzzle-modal');
+    const titleEl = document.getElementById('puzzle-title');
+    const contentEl = document.getElementById('puzzle-content');
+
+    titleEl.innerHTML = `${obj.icon} ${obj.name}`;
+    contentEl.innerHTML = '';
+
+    // Stage 1 Puzzles
+    if (currentStage === 1) {
+        if (obj.id === 'loom') {
+            contentEl.innerHTML = `
+                <p>這是一台古樸的木製織布機。機杼上銘刻著詩句：<b>「唧唧復唧唧，木蘭當戶織。不聞機杼聲，唯聞女歎息。」</b></p>
+                <div class="clue-box">問題：請選出文中「機杼」正確注音與「唧唧」之涵義：</div>
+                <div class="question-options">
+                    <button class="option-btn" onclick="answerQuestion(true, 'shuttle', '答對了！「杼」音 ㄓㄨˋ，為織布梭子；「唧唧」為織布聲！獲得【織布梭子】！')">A. 機杼（ㄓㄨˋ），織布機與梭子；唧唧為織布聲。</button>
+                    <button class="option-btn" onclick="answerQuestion(false, null, '答錯了！「杼」音ㄓㄨˋ，非 ㄕㄨˇ。')">B. 機杼（ㄕㄨˇ），紡織布料；唧唧為嘆息聲。</button>
+                </div>
+            `;
+        } else if (obj.id === 'notice') {
+            contentEl.innerHTML = `
+                <p>牆上貼著可汗的徵兵告示：<b>「可汗大點兵，軍書十二卷，卷卷有爺名。」</b></p>
+                <p>國學常識考題：本詩屬於漢代掌管音樂官署收集之民歌，請問《木蘭詩》與哪一部作品並稱為<b>「樂府雙璧」</b>？</p>
+                <div class="question-options">
+                    <button class="option-btn" onclick="answerQuestion(true, null, '答對了！《木蘭詩》與《孔雀東南飛》並稱為樂府雙璧！獲得關鍵線索。')">A. 《孔雀東南飛》</button>
+                    <button class="option-btn" onclick="answerQuestion(false, null, '答錯了！《長歌行》非樂府雙璧之一。')">B. 《長歌行》</button>
+                </div>
+            `;
+        } else if (obj.id === 'chest1') {
+            contentEl.innerHTML = `
+                <p>這是一個實體黃銅滾輪密碼鎖箱。請輸入「機杼」正確注音之聲調（聲母與韻母拼音符號）：</p>
+                <div class="lock-container">
+                    <div class="dial-group">
+                        <button class="dial-btn" onclick="changeDial(0, 1)">▲</button>
+                        <div class="dial-val" id="dial-0">ㄓ</div>
+                        <button class="dial-btn" onclick="changeDial(0, -1)">▼</button>
+                    </div>
+                    <div class="dial-group">
+                        <button class="dial-btn" onclick="changeDial(1, 1)">▲</button>
+                        <div class="dial-val" id="dial-1">ㄨ</div>
+                        <button class="dial-btn" onclick="changeDial(1, -1)">▼</button>
+                    </div>
+                    <div class="dial-group">
+                        <button class="dial-btn" onclick="changeDial(2, 1)">▲</button>
+                        <div class="dial-val" id="dial-2">ˋ</div>
+                        <button class="dial-btn" onclick="changeDial(2, -1)">▼</button>
+                    </div>
+                </div>
+                <button class="btn-submit" onclick="checkStage1Lock()">旋轉開鎖</button>
+            `;
+        } else if (obj.id === 'door1') {
+            if (stageProgress[1]) {
+                currentStage = 2;
+                player.x = 440; player.y = 380;
+                updateTopBar();
+                closeModal();
+                alert("🚪 成功解開織房大門，前往「東市集市」！");
+            } else {
+                contentEl.innerHTML = `<p style="color:var(--accent-red); font-weight:bold;">🚪 大門深鎖！請先解開機杼上鎖木箱以取得鑰匙。</p>`;
+            }
+        }
+    }
+    // Stage 2 Puzzles
+    else if (currentStage === 2) {
+        if (obj.id === 'horse_stall') {
+            contentEl.innerHTML = `
+                <p>集市鞍具攤擺滿裝備：<b>「東市買駿馬，西市買鞍韉，南市買轡頭, 北市買長鞭。」</b></p>
+                <div class="clue-box">問題：請問「鞍韉」之「韉」注音與字義為何？</div>
+                <div class="question-options">
+                    <button class="option-btn" onclick="answerQuestion(true, 'saddle', '答對了！韉（ㄐㄧㄢ）為馬鞍下的墊子！獲得【駿馬鞍韉】！')">A. 韉（ㄐㄧㄢ），襯托馬鞍的墊子。</button>
+                    <button class="option-btn" onclick="answerQuestion(false, null, '答錯了！音ㄐㄧㄢ，非 ㄑㄧㄢ。')">B. 韉（ㄑㄧㄢ），馬韁繩。</button>
+                </div>
+            `;
+        } else if (obj.id === 'river_map') {
+            contentEl.innerHTML = `
+                <p>地圖上記述木蘭行軍行蹤：<b>「旦辭黃河去，暮至黑山頭。不聞爺娘喚女聲，但聞黃河流水鳴濺濺。」</b></p>
+                <div class="clue-box">問題：請問「濺濺」與「啾啾」分別描摹何種聲音？</div>
+                <div class="question-options">
+                    <button class="option-btn" onclick="answerQuestion(true, null, '正確！「濺濺」為流水聲，「啾啾」為馬鳴聲！')">A. 濺濺：流水聲 / 啾啾：胡馬鳴叫聲。</button>
+                    <button class="option-btn" onclick="answerQuestion(false, null, '答錯！濺濺非風聲。')">B. 濺濺：風吹聲 / 啾啾：鳥鳴聲。</button>
+                </div>
+            `;
+        } else if (obj.id === 'chest2') {
+            contentEl.innerHTML = `
+                <p>請依據詩句「東市買駿馬…北市買長鞭」所使用的<b>「互文」</b>修辭解開機關鎖：</p>
+                <p>互文意指「參互成文，合而見義」。下列何者同屬互文修辭？</p>
+                <div class="question-options">
+                    <button class="option-btn" onclick="unlockStage(2)">A. 將軍百戰死，壯士十年歸。（正確！解開第二關機關鎖）</button>
+                    <button class="option-btn" onclick="answerQuestion(false, null, '答錯！此為對偶非互文。')">B. 唧唧復唧唧，木蘭當戶織。</button>
+                </div>
+            `;
+        } else if (obj.id === 'door2') {
+            if (stageProgress[2]) {
+                currentStage = 3;
+                player.x = 440; player.y = 380;
+                updateTopBar();
+                closeModal();
+                alert("🚪 成功通過軍營大門，進入「軍營幕府」！");
+            } else {
+                contentEl.innerHTML = `<p style="color:var(--accent-red); font-weight:bold;">🚪 軍營大門守衛森嚴！請先解開集市機關箱！</p>`;
+            }
+        }
+    }
+    // Stage 3 Puzzles
+    else if (currentStage === 3) {
+        if (obj.id === 'tally_stand') {
+            contentEl.innerHTML = `
+                <p>兵符架上赫然擺放著朝廷兵符。詩句云：<b>「歸來見天子，天子坐明堂。策勳十二轉，賞賜百千強。」</b></p>
+                <div class="clue-box">問題：請問文中「軍書十二卷」、「同行十二年」之「十二」意義為何？</div>
+                <div class="question-options">
+                    <button class="option-btn" onclick="answerQuestion(true, 'tally', '正確！「十二」為虛數，表示極多！獲得【虎符兵符】！')">A. 虛數，表示極多，非確切數字。</button>
+                    <button class="option-btn" onclick="answerQuestion(false, null, '答錯！古詩詞中十二常為虛數。')">B. 實數，正好12年與12卷。</button>
+                </div>
+            `;
+        } else if (obj.id === 'sandtable') {
+            contentEl.innerHTML = `
+                <p>沙盤上記載著陣法修辭：<b>「歸來見天子，天子坐明堂。」</b></p>
+                <p>問題：前一句結尾字詞做為後一句開頭，此種修辭技巧為何？</p>
+                <div class="question-options">
+                    <button class="option-btn" onclick="answerQuestion(true, null, '正確！前頂後接為「頂真」修辭！')">A. 頂真修辭</button>
+                    <button class="option-btn" onclick="answerQuestion(false, null, '答錯！非回文。')">B. 回文修辭</button>
+                </div>
+            `;
+        } else if (obj.id === 'chest3') {
+            contentEl.innerHTML = `
+                <p>請輸入本詩代表性「虛數」密碼以開啟帥帳保險鎖：</p>
+                <div class="lock-container">
+                    <div class="dial-group">
+                        <button class="dial-btn" onclick="changeNumDial(0, 1)">▲</button>
+                        <div class="dial-val" id="num-dial-0">0</div>
+                        <button class="dial-btn" onclick="changeNumDial(0, -1)">▼</button>
+                    </div>
+                    <div class="dial-group">
+                        <button class="dial-btn" onclick="changeNumDial(1, 1)">▲</button>
+                        <div class="dial-val" id="num-dial-1">0</div>
+                        <button class="dial-btn" onclick="changeNumDial(1, -1)">▼</button>
+                    </div>
+                </div>
+                <button class="btn-submit" onclick="checkNumLock()">解開兵符鎖</button>
+            `;
+        } else if (obj.id === 'door3') {
+            if (stageProgress[3]) {
+                currentStage = 4;
+                player.x = 440; player.y = 380;
+                updateTopBar();
+                closeModal();
+                alert("🚪 成功通過幕府，回到「凱旋閨房」！");
+            } else {
+                contentEl.innerHTML = `<p style="color:var(--accent-red); font-weight:bold;">🚪 帥帳後門已鎖上！請解開軍卷保險鎖。</p>`;
+            }
+        }
+    }
+    // Stage 4 Puzzles
+    else if (currentStage === 4) {
+        if (obj.id === 'mirror') {
+            contentEl.innerHTML = `
+                <p>鏡檯前木蘭恢復女兒身：<b>「脫我戰時袍，著我舊時裳。當窗理雲鬢，對鏡帖花黃。」</b></p>
+                <div class="clue-box">獲得【雲鬢黃花梳】！解開終極謎題關鍵！</div>
+            `;
+            addToInventory('comb');
+        } else if (obj.id === 'rabbit_cage') {
+            contentEl.innerHTML = `
+                <p>籠中兩隻兔子並排奔跑：<b>「雄兔腳撲朔，雌兔眼迷離；雙兔傍地走，安能辨我是雄雌？」</b></p>
+                <p>問題：此段話以何種妙喻展現木蘭何種精神？</p>
+                <div class="question-options">
+                    <button class="option-btn" onclick="answerQuestion(true, null, '答對了！以雙兔難辨比喻木蘭女扮男裝之智慧與忠孝雙全！')">A. 以雙兔難辨比喻巾幗不讓須眉，女扮男裝征戰之智慧。</button>
+                    <button class="option-btn" onclick="answerQuestion(false, null, '答錯了！此妙喻強調機智與才能。')">B. 說明木蘭喜歡飼養寵物。 </button>
+                </div>
+            `;
+        } else if (obj.id === 'master_lock') {
+            if (inventory.length >= 4) {
+                contentEl.innerHTML = `
+                    <h2 style="color:var(--accent-red); text-align:center; margin-bottom:12px;">🎉 恭喜成功脫逃！</h2>
+                    <p style="text-align:center; font-size:18px;">您已集齊【織布梭子】、【駿馬鞍韉】、【虎符兵符】與【雲鬢黃花梳】！</p>
+                    <p style="text-align:center; margin-top:12px; color:var(--accent-gold); font-weight:bold; font-size:20px;">🎖️ 獲頒「國中國文《木蘭詩》密室脫逃大師證書」！</p>
+                `;
+                playSound('unlock');
+            } else {
+                contentEl.innerHTML = `
+                    <p style="color:var(--accent-red); font-weight:bold;">⛩️ 終極大門尚未解鎖！需要集齊全數 4 件實體道具（目前 ${inventory.length}/4 件）。</p>
+                `;
+            }
+        }
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('puzzle-modal').style.display = 'none';
+    document.getElementById('item-modal').style.display = 'none';
+}
+
+function answerQuestion(isCorrect, giveItemKey, msg) {
+    if (isCorrect) {
+        playSound('unlock');
+        alert(msg);
+        if (giveItemKey) addToInventory(giveItemKey);
+        closeModal();
+    } else {
+        playSound('error');
+        alert(msg);
+    }
+}
+
+function addToInventory(itemKey) {
+    if (inventory.includes(itemKey)) return;
+    if (inventory.length >= 4) return;
+
+    inventory.push(itemKey);
+    updateInventoryUI();
+}
+
+function updateInventoryUI() {
+    for (let i = 0; i < 4; i++) {
+        const slotEl = document.getElementById(`slot-${i}`);
+        if (inventory[i]) {
+            const itemData = itemsDb[inventory[i]];
+            slotEl.className = "slot has-item";
+            slotEl.innerHTML = `<span class="slot-icon">${itemData.icon}</span><span class="slot-name">${itemData.name}</span>`;
+        } else {
+            slotEl.className = "slot";
+            slotEl.innerHTML = "";
+        }
+    }
+}
+
+function inspectSlot(index) {
+    if (!inventory[index]) return;
+
+    playSound('click');
+    const itemData = itemsDb[inventory[index]];
+    document.getElementById('item-title').innerText = "🔍 實體道具詳情";
+    document.getElementById('item-icon').innerText = itemData.icon;
+    document.getElementById('item-name-heading').innerText = itemData.name;
+    document.getElementById('item-desc').innerText = itemData.desc;
+    document.getElementById('item-clue').innerText = itemData.clue;
+
+    document.getElementById('item-modal').style.display = 'flex';
+}
+
+// Stage 1 Lock Logic
+const dialChars = ['ㄓ', 'ㄔ', 'ㄕ', 'ㄖ', 'ㄗ'];
+let dialIndices = [0, 0, 0];
+
+function changeDial(idx, dir) {
+    playSound('click');
+    dialIndices[idx] = (dialIndices[idx] + dir + dialChars.length) % dialChars.length;
+    document.getElementById(`dial-${idx}`).innerText = dialChars[dialIndices[idx]];
+}
+
+function checkStage1Lock() {
+    if (dialIndices[0] === 0) { // 'ㄓ'
+        unlockStage(1);
+    } else {
+        playSound('error');
+        alert("🔒 密碼錯誤！請再次確認「機杼」之注音聲母。");
+    }
+}
+
+// Stage 3 Lock Logic
+let numDialVal = [0, 0];
+function changeNumDial(idx, dir) {
+    playSound('click');
+    numDialVal[idx] = (numDialVal[idx] + dir + 10) % 10;
+    document.getElementById(`num-dial-${idx}`).innerText = numDialVal[idx];
+}
+
+function checkNumLock() {
+    if (numDialVal[0] === 1 && numDialVal[1] === 2) { // 12
+        unlockStage(3);
+    } else {
+        playSound('error');
+        alert("🔒 密碼錯誤！請思考詩中代表極多之「虛數」。");
+    }
+}
+
+function unlockStage(stg) {
+    playSound('unlock');
+    stageProgress[stg] = true;
+    alert(`🎉 成功解開第 ${stg} 關機關密碼！出口大門已開啟！`);
+    closeModal();
+}
+
+function updateTopBar() {
+    document.getElementById('room-name').innerText = stages[currentStage].name;
+    document.getElementById('stage-num').innerText = currentStage;
+}
+
+// Touch support check
+if ('ontouchstart' in window) {
+    document.getElementById('virtual-dpad').style.display = 'block';
+}
+
+// Start Game Loop
+gameLoop();
+</script>
+
+</body>
+</html>
